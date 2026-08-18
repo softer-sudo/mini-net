@@ -60,3 +60,31 @@ test('emits overflow exactly once when an unterminated line exceeds the byte lim
 test('MAX_LINE_BYTES defaults to 1024', () => {
   assert.equal(MAX_LINE_BYTES, 1024);
 });
+
+test('emits overflow for a newline-terminated line exceeding maxBytes', () => {
+  const framer = new LineFramer(16);
+  let overflowCount = 0;
+  const lines: string[] = [];
+  framer.on('line', (line: string) => lines.push(line));
+  framer.on('overflow', () => { overflowCount++; });
+
+  // Send a line with 17 bytes (16 + 1 byte over limit), newline-terminated
+  framer.feed(Buffer.from('a'.repeat(17) + '\n'));
+
+  assert.equal(overflowCount, 1);
+  assert.deepEqual(lines, []);
+});
+
+test('does not overflow for a newline-terminated line at exactly maxBytes', () => {
+  const framer = new LineFramer(16);
+  let overflowCount = 0;
+  const lines: string[] = [];
+  framer.on('line', (line: string) => lines.push(line));
+  framer.on('overflow', () => { overflowCount++; });
+
+  // Send a line with exactly 16 bytes, newline-terminated
+  framer.feed(Buffer.from('a'.repeat(16) + '\n'));
+
+  assert.equal(overflowCount, 0);
+  assert.deepEqual(lines, ['a'.repeat(16)]);
+});
