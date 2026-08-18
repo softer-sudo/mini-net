@@ -46,13 +46,23 @@ export async function run(argv: string[]): Promise<number> {
     return 1;
   }
 
-  await handler(rest);
-  return 0;
+  try {
+    await handler(rest);
+    return 0;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`Error running command '${command}': ${message}\n`);
+    return 1;
+  }
 }
 
 const isMainModule = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   run(process.argv.slice(2)).then((code) => {
     process.exitCode = code;
+  }).catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`Fatal error: ${message}\n`);
+    process.exitCode = 1;
   });
 }

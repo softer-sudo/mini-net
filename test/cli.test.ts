@@ -39,3 +39,15 @@ test('registered command handler is invoked with the remaining args', async () =
   assert.equal(code, 0);
   assert.deepEqual(received, ['a', 'b']);
 });
+
+test('command handler that throws prints error to stderr and exits 1', async () => {
+  const stderrChunks: string[] = [];
+  const originalStderr = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((chunk: unknown) => { stderrChunks.push(String(chunk)); return true; }) as typeof process.stderr.write;
+  registerCommand('__test-thrower', () => { throw new Error('test error'); });
+  const code = await run(['__test-thrower']);
+  process.stderr.write = originalStderr;
+  assert.equal(code, 1);
+  const stderrOutput = stderrChunks.join('');
+  assert.match(stderrOutput, /Error running command '__test-thrower': test error/);
+});
