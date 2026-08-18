@@ -1,0 +1,20 @@
+{
+  "name": "mini-net",
+  "version": "0.1.0",
+  "description": "Tiny Node.js + TypeScript CLI demonstrating networking fundamentals from raw sockets",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "bin": { "mini-net": "dist/cli.js" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "gen-cert": "bash scripts/gen-cert.sh",
+    "test": "tsx --test test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}
