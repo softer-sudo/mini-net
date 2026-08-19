@@ -76,6 +76,16 @@ registerCommand('udp-messenger', async (args) => {
   process.stderr.write('Usage: mini-net udp-messenger <server|client> [options]\n');
 });
 
+import { runServerCommand as tlsChatServer } from './tls-chat/server.js';
+import { runClientCommand as tlsChatClient } from './tls-chat/client.js';
+
+registerCommand('tls-chat', async (args) => {
+  const [sub, ...rest] = args;
+  if (sub === 'server') return tlsChatServer(rest);
+  if (sub === 'client') return tlsChatClient(rest);
+  process.stderr.write('Usage: mini-net tls-chat <server|client> [options]\n');
+});
+
 const isMainModule = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   run(process.argv.slice(2)).then((code) => {
