@@ -84,15 +84,25 @@ export function rawDnsQuery(hostname: string, server = '8.8.8.8'): Promise<DnsAn
     const socket = dgram.createSocket('udp4');
     const id = randomInt(0, 65536);
     const query = encodeQuery(hostname, id);
+    let settled = false;
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      if (!settled) {
+        settled = true;
+        socket.close();
+      }
+    };
 
     const timer = setTimeout(() => {
-      socket.close();
+      if (settled) return;
+      cleanup();
       reject(new Error(`DNS query to ${server} timed out after ${QUERY_TIMEOUT_MS}ms`));
     }, QUERY_TIMEOUT_MS);
 
     socket.on('message', (msg) => {
-      clearTimeout(timer);
-      socket.close();
+      if (settled) return;
+      cleanup();
       try {
         resolve(decodeResponse(msg, id));
       } catch (err) {
@@ -101,8 +111,8 @@ export function rawDnsQuery(hostname: string, server = '8.8.8.8'): Promise<DnsAn
     });
 
     socket.on('error', (err) => {
-      clearTimeout(timer);
-      socket.close();
+      if (settled) return;
+      cleanup();
       reject(err);
     });
 
