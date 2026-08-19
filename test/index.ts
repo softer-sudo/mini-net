@@ -6,3 +6,4 @@ import './tcp-chat.test.js';
 import './tls-chat.test.js';
 import './udp-messenger.test.js';
 import './dns.test.js';
+import './latency.test.js';

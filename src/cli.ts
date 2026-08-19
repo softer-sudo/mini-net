@@ -96,6 +96,12 @@ registerCommand('dns', async (args) => {
   process.stderr.write('Usage: mini-net dns <lookup|raw> <hostname> [options]\n');
 });
 
+import { runPingCommand } from './latency/tcp-ping.js';
+import { runTracerouteCommand } from './latency/traceroute.js';
+
+registerCommand('ping', runPingCommand);
+registerCommand('traceroute', runTracerouteCommand);
+
 const isMainModule = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   run(process.argv.slice(2)).then((code) => {
