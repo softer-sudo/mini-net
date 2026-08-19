@@ -26,23 +26,28 @@ test('TLS client completes a verified handshake and receives a broadcast', async
 
   const a = connectTlsChatClient('localhost', port, certDir);
   const b = connectTlsChatClient('localhost', port, certDir);
-  await Promise.all([once(a, 'secureConnect'), once(b, 'secureConnect')]);
+  try {
+    await Promise.all([once(a, 'secureConnect'), once(b, 'secureConnect')]);
 
-  assert.equal(a.authorized, true);
-  assert.equal(b.authorized, true);
+    assert.equal(a.authorized, true);
+    assert.equal(b.authorized, true);
 
-  const bMessages: string[] = [];
-  b.on('data', (chunk) => bMessages.push(chunk.toString()));
+    // Small delay to ensure sockets are fully established
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
-  a.write('hello over tls\n');
-  await new Promise((resolve) => setTimeout(resolve, 150));
+    const bMessages: string[] = [];
+    b.on('data', (chunk) => bMessages.push(chunk.toString()));
 
-  assert.equal(bMessages.length, 1);
-  assert.match(bMessages[0], /hello over tls/);
+    a.write('hello over tls\n');
+    await once(b, 'data');
 
-  a.destroy();
-  b.destroy();
-  server.close();
+    assert.equal(bMessages.length, 1);
+    assert.match(bMessages[0], /hello over tls/);
+  } finally {
+    a.destroy();
+    b.destroy();
+    server.close();
+  }
 });
 
 test('TLS server disconnects a client sending an oversized unterminated line', async () => {
