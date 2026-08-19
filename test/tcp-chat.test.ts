@@ -39,6 +39,7 @@ test('disconnects a client that sends an oversized line with no newline', async 
   await once(client, 'connect');
 
   const closed = once(client, 'close');
+  client.resume();
   client.write(Buffer.alloc(2000, 'a'));
   await closed;
 
