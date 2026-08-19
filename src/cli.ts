@@ -86,6 +86,16 @@ registerCommand('tls-chat', async (args) => {
   process.stderr.write('Usage: mini-net tls-chat <server|client> [options]\n');
 });
 
+import { runLookupCommand } from './dns/lookup.js';
+import { runRawCommand } from './dns/raw-query.js';
+
+registerCommand('dns', async (args) => {
+  const [sub, ...rest] = args;
+  if (sub === 'lookup') return runLookupCommand(rest);
+  if (sub === 'raw') return runRawCommand(rest);
+  process.stderr.write('Usage: mini-net dns <lookup|raw> <hostname> [options]\n');
+});
+
 const isMainModule = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   run(process.argv.slice(2)).then((code) => {
