@@ -56,6 +56,16 @@ export async function run(argv: string[]): Promise<number> {
   }
 }
 
+import { runServerCommand as tcpChatServer } from './tcp-chat/server.js';
+import { runClientCommand as tcpChatClient } from './tcp-chat/client.js';
+
+registerCommand('tcp-chat', async (args) => {
+  const [sub, ...rest] = args;
+  if (sub === 'server') return tcpChatServer(rest);
+  if (sub === 'client') return tcpChatClient(rest);
+  process.stderr.write('Usage: mini-net tcp-chat <server|client> [options]\n');
+});
+
 const isMainModule = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   run(process.argv.slice(2)).then((code) => {
