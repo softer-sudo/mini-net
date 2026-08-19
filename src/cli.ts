@@ -66,6 +66,16 @@ registerCommand('tcp-chat', async (args) => {
   process.stderr.write('Usage: mini-net tcp-chat <server|client> [options]\n');
 });
 
+import { runServerCommand as udpMessengerServer } from './udp-messenger/server.js';
+import { runClientCommand as udpMessengerClient } from './udp-messenger/client.js';
+
+registerCommand('udp-messenger', async (args) => {
+  const [sub, ...rest] = args;
+  if (sub === 'server') return udpMessengerServer(rest);
+  if (sub === 'client') return udpMessengerClient(rest);
+  process.stderr.write('Usage: mini-net udp-messenger <server|client> [options]\n');
+});
+
 const isMainModule = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   run(process.argv.slice(2)).then((code) => {
