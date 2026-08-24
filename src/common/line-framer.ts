@@ -23,6 +23,7 @@ export class LineFramer extends EventEmitter {
       // Check if this line exceeds the limit
       if (raw.length > this.#maxBytes) {
         this.#overflowed = true;
+        this.#buffer = Buffer.alloc(0);
         this.emit('overflow');
         return; // Stop processing immediately
       }
@@ -35,6 +36,7 @@ export class LineFramer extends EventEmitter {
 
     if (!this.#overflowed && this.#buffer.length > this.#maxBytes) {
       this.#overflowed = true;
+      this.#buffer = Buffer.alloc(0);
       this.emit('overflow');
     }
   }

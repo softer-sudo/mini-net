@@ -7,6 +7,10 @@ import { getFlagOrDefault } from '../common/args.js';
 
 const defaultCertDir = path.resolve(fileURLToPath(import.meta.url), '../../../certs');
 
+// Deliberately near-identical to ../tcp-chat/server.ts — same protocol, TLS is
+// just the encrypted transport. Keep them readable independently rather than
+// abstracting the overlap away.
+
 export function startTlsChatServer(port: number, certDir: string = defaultCertDir): tls.Server {
   const options: tls.TlsOptions = {
     key: fs.readFileSync(path.join(certDir, 'server.key')),
@@ -46,6 +50,11 @@ export function startTlsChatServer(port: number, certDir: string = defaultCertDi
       console.log(`[tls-chat] disconnected: ${address}`);
     });
     socket.on('error', (err) => console.warn(`[tls-chat] socket error from ${address}: ${err.message}`));
+  });
+
+  server.on('error', (err) => {
+    console.error(`[tls-chat] server error: ${err.message}`);
+    process.exitCode = 1;
   });
 
   server.listen(port, () => {

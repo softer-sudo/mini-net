@@ -8,13 +8,15 @@ import { countHops } from '../src/latency/traceroute.js';
 test('tcpPingOnce measures a real connect RTT against a local server', async () => {
   const server = net.createServer((socket) => socket.end());
   server.listen(0);
-  await once(server, 'listening');
-  const port = (server.address() as net.AddressInfo).port;
+  try {
+    await once(server, 'listening');
+    const port = (server.address() as net.AddressInfo).port;
 
-  const rtt = await tcpPingOnce('127.0.0.1', port);
-  assert.ok(rtt >= 0 && rtt < 1000);
-
-  server.close();
+    const rtt = await tcpPingOnce('127.0.0.1', port);
+    assert.ok(rtt >= 0 && rtt < 1000);
+  } finally {
+    server.close();
+  }
 });
 
 test('tcpPingOnce rejects when the connection is refused', async () => {

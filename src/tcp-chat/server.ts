@@ -2,6 +2,10 @@ import net from 'node:net';
 import { LineFramer, MAX_LINE_BYTES } from '../common/line-framer.js';
 import { getFlagOrDefault } from '../common/args.js';
 
+// Deliberately near-identical to ../tls-chat/server.ts — same protocol, TLS is
+// just the encrypted transport. Keep them readable independently rather than
+// abstracting the overlap away.
+
 export function startTcpChatServer(port: number): net.Server {
   const clients = new Set<net.Socket>();
 
@@ -38,6 +42,11 @@ export function startTcpChatServer(port: number): net.Server {
     socket.on('error', (err) => {
       console.warn(`[tcp-chat] socket error from ${address}: ${err.message}`);
     });
+  });
+
+  server.on('error', (err) => {
+    console.error(`[tcp-chat] server error: ${err.message}`);
+    process.exitCode = 1;
   });
 
   server.listen(port, () => {

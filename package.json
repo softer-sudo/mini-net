@@ -8,9 +8,10 @@
   "bin": { "mini-net": "dist/cli.js" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
     "dev": "tsx src/cli.ts",
     "gen-cert": "bash scripts/gen-cert.sh",
-    "test": "tsx --test test"
+    "test": "tsx --test --test-timeout=10000 test"
   },
   "devDependencies": {
     "@types/node": "^20.14.2",

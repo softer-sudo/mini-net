@@ -23,7 +23,10 @@ export function startUdpMessengerServer(port: number): dgram.Socket {
     }
   });
 
-  socket.on('error', (err) => console.warn(`[udp-messenger] socket error: ${err.message}`));
+  socket.on('error', (err) => {
+    console.warn(`[udp-messenger] socket error: ${err.message}`);
+    process.exitCode = 1;
+  });
   socket.on('close', () => console.log('[udp-messenger] server socket closed'));
 
   socket.bind(port, () => {

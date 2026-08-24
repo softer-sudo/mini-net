@@ -1,14 +1,27 @@
 import net from 'node:net';
-import { LineFramer } from '../common/line-framer.js';
+import { LineFramer, MAX_LINE_BYTES } from '../common/line-framer.js';
 import { getFlagOrDefault } from '../common/args.js';
 import { relayStdinLines } from '../common/stdin-relay.js';
 
+// Deliberately near-identical to ../tls-chat/client.ts — same protocol, TLS is
+// just the encrypted transport. Keep them readable independently rather than
+// abstracting the overlap away.
+
+// The server prepends "[address:port] " before rebroadcasting an already
+// MAX_LINE_BYTES-validated line, so the receiving client's framer needs
+// headroom for that prefix or a max-length line would overflow on receipt.
+const CLIENT_LINE_HEADROOM_BYTES = 128;
+
 export function connectTcpChatClient(host: string, port: number): net.Socket {
   const socket = net.createConnection({ host, port });
-  const framer = new LineFramer();
+  const framer = new LineFramer(MAX_LINE_BYTES + CLIENT_LINE_HEADROOM_BYTES);
 
   socket.on('connect', () => console.log(`[tcp-chat] connected to ${host}:${port}`));
   framer.on('line', (line: string) => console.log(line));
+  framer.on('overflow', () => {
+    console.warn('[tcp-chat] received an oversized line from the server, disconnecting');
+    socket.destroy();
+  });
   socket.on('data', (chunk) => framer.feed(chunk));
 
   socket.setTimeout(60_000);

@@ -9,11 +9,14 @@ you can read start to finish in a single file, not a production framework.
 ## 1. What this is
 
 `mini-net` bundles six sub-commands behind one CLI entry point: a
-multi-client TCP chat room, the same chat protocol re-implemented over UDP,
-the same chat protocol again over TLS with certificate verification, a DNS
-resolver (both the "normal" built-in way and a hand-rolled raw UDP query),
-and a pair of latency tools (TCP-connect ping and a traceroute-style hop
-counter). The point of the project is pedagogical: each command exists to
+multi-client TCP chat room, a UDP-based messenger with the same
+broadcast-relay idea but no line framing (each datagram is already a
+discrete message, validated by a byte-size cap instead), the same
+line-framed chat protocol as the TCP version again over TLS with
+certificate verification, a DNS resolver (both the "normal" built-in way
+and a hand-rolled raw UDP query), and a pair of latency tools (TCP-connect
+ping and a traceroute-style hop counter). The point of the project is
+pedagogical: each command exists to
 make one layer of the network stack, or one trade-off between protocols,
 concrete and runnable, and the code is written to be read.
 
@@ -57,7 +60,7 @@ or `--help`/`-h`, prints the full command usage.
 | Command | Demonstrates | Example |
 |---|---|---|
 | `tcp-chat server` / `tcp-chat client` | Connection-oriented, ordered, reliable multi-client broadcast over TCP | `node dist/cli.js tcp-chat server --port 4000`<br>`node dist/cli.js tcp-chat client --host localhost --port 4000` |
-| `udp-messenger server` / `udp-messenger client` | Connectionless, best-effort, one-shot datagrams (connected-mode `dgram`) | `node dist/cli.js udp-messenger server --port 5000`<br>`node dist/cli.js udp-messenger client --host localhost --port 5000` |
+| `udp-messenger server` / `udp-messenger client` | Connectionless, best-effort, one-shot datagrams (the client uses a connected-mode `dgram` socket; the server stays unconnected to serve multiple peers) | `node dist/cli.js udp-messenger server --port 5000`<br>`node dist/cli.js udp-messenger client --host localhost --port 5000` |
 | `tls-chat server` / `tls-chat client` | The same chat protocol over an encrypted, certificate-verified TCP connection | `node dist/cli.js tls-chat server --port 4443`<br>`node dist/cli.js tls-chat client --host localhost --port 4443` |
 | `dns lookup <hostname>` | The "normal" resolution path via Node's built-in stub resolver | `node dist/cli.js dns lookup example.com` |
 | `dns raw <hostname> [--server <ip>]` | DNS as a single hand-encoded UDP request/response, no library help | `node dist/cli.js dns raw example.com --server 8.8.8.8` |
@@ -69,9 +72,10 @@ port `4443`, `--host` on all clients is `localhost`, `dns raw --server`
 defaults to `8.8.8.8`, `ping`/`traceroute` `--port` defaults to `80`, `ping
 --count` defaults to `4`.
 
-Both chat servers broadcast each line to every *other* connected client —
-the sender never sees its own message echoed back. Type lines on stdin
-after connecting; each line is sent as one message.
+All three servers (`tcp-chat`, `udp-messenger`, `tls-chat`) relay each
+message to every *other* connected client or peer — the sender never sees
+their own message echoed back. Type lines on stdin after connecting; each
+line is sent as one message.
 
 ## 4. OSI layer map
 
@@ -164,8 +168,9 @@ skipped, and each answer record is parsed by resolving its name (which is
 frequently a **compression pointer** — a 2-byte `0xC0xx` reference back into
 an earlier part of the message rather than a repeated literal name, since
 the answer's name is usually identical to the question's), then reading the
-type, TTL, and RDATA length/value. `dns raw` returns the first `A`-type
-record and skips over any `CNAME` records it encounters along the way. A
+type, TTL, and RDATA length/value. `dns raw` collects every `A`-type record
+it finds in the answer section (a response can carry more than one) and
+skips over any `CNAME` records it encounters along the way. A
 `setTimeout` rejects the whole operation if no reply arrives within 3
 seconds — since UDP has no delivery guarantee, "no response" has to be
 handled explicitly rather than assumed away.

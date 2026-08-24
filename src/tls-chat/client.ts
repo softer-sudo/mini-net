@@ -2,23 +2,36 @@ import tls from 'node:tls';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LineFramer } from '../common/line-framer.js';
+import { LineFramer, MAX_LINE_BYTES } from '../common/line-framer.js';
 import { getFlagOrDefault } from '../common/args.js';
 import { relayStdinLines } from '../common/stdin-relay.js';
 
+// Deliberately near-identical to ../tcp-chat/client.ts — same protocol, TLS is
+// just the encrypted transport. Keep them readable independently rather than
+// abstracting the overlap away.
+
 const defaultCertDir = path.resolve(fileURLToPath(import.meta.url), '../../../certs');
+
+// The server prepends "[address:port] " before rebroadcasting an already
+// MAX_LINE_BYTES-validated line, so the receiving client's framer needs
+// headroom for that prefix or a max-length line would overflow on receipt.
+const CLIENT_LINE_HEADROOM_BYTES = 128;
 
 export function connectTlsChatClient(host: string, port: number, certDir: string = defaultCertDir): tls.TLSSocket {
   const ca = fs.readFileSync(path.join(certDir, 'server.cert'));
   // rejectUnauthorized stays at its default (true): we pin the CA instead of
   // disabling verification, so a mismatched or expired cert still fails closed.
   const socket = tls.connect({ host, port, ca });
-  const framer = new LineFramer();
+  const framer = new LineFramer(MAX_LINE_BYTES + CLIENT_LINE_HEADROOM_BYTES);
 
   socket.on('secureConnect', () => {
     console.log(`[tls-chat] TLS connected to ${host}:${port} (authorized: ${socket.authorized})`);
   });
   framer.on('line', (line: string) => console.log(line));
+  framer.on('overflow', () => {
+    console.warn('[tls-chat] received an oversized line from the server, disconnecting');
+    socket.destroy();
+  });
   socket.on('data', (chunk) => framer.feed(chunk));
 
   socket.setTimeout(60_000);

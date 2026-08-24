@@ -66,3 +66,39 @@ test('TLS server disconnects a client sending an oversized unterminated line', a
 
   server.close();
 });
+
+test('a maximum-length broadcast line does not deafen the receiving client', async () => {
+  ensureCerts();
+  const server = startTlsChatServer(0, certDir);
+  await once(server, 'listening');
+  const port = (server.address() as AddressInfo).port;
+
+  const a = connectTlsChatClient('localhost', port, certDir);
+  const b = connectTlsChatClient('localhost', port, certDir);
+  try {
+    await Promise.all([once(a, 'secureConnect'), once(b, 'secureConnect')]);
+
+    // Small delay to ensure both sockets are fully established server-side
+    // before writing (mirrors the first test in this file).
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const printedLines: string[] = [];
+    const originalLog = console.log;
+    console.log = ((msg: unknown) => { printedLines.push(String(msg)); }) as typeof console.log;
+    try {
+      a.write(`${'a'.repeat(1024)}\n`); // exactly MAX_LINE_BYTES, legal at the server's incoming framer
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      a.write('short follow-up\n'); // proves b is still listening afterward, not silently deafened
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    } finally {
+      console.log = originalLog;
+    }
+
+    assert.ok(printedLines.some((line) => line.includes('a'.repeat(1024))), 'the max-length broadcast should have reached b');
+    assert.ok(printedLines.some((line) => line.includes('short follow-up')), 'b must still be listening after the max-length line');
+  } finally {
+    a.destroy();
+    b.destroy();
+    server.close();
+  }
+});
