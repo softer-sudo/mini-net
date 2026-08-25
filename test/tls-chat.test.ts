@@ -32,7 +32,6 @@ test('TLS client completes a verified handshake and receives a broadcast', async
     assert.equal(a.authorized, true);
     assert.equal(b.authorized, true);
 
-    // Small delay to ensure sockets are fully established
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     const bMessages: string[] = [];
@@ -60,7 +59,7 @@ test('TLS server disconnects a client sending an oversized unterminated line', a
   await once(client, 'secureConnect');
 
   const closed = once(client, 'close');
-  client.resume(); // drain the "ERROR: line too long..." the server writes before destroying, or 'close' never fires
+  client.resume();
   client.write(Buffer.alloc(2000, 'a'));
   await closed;
 
@@ -78,17 +77,15 @@ test('a maximum-length broadcast line does not deafen the receiving client', asy
   try {
     await Promise.all([once(a, 'secureConnect'), once(b, 'secureConnect')]);
 
-    // Small delay to ensure both sockets are fully established server-side
-    // before writing (mirrors the first test in this file).
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     const printedLines: string[] = [];
     const originalLog = console.log;
     console.log = ((msg: unknown) => { printedLines.push(String(msg)); }) as typeof console.log;
     try {
-      a.write(`${'a'.repeat(1024)}\n`); // exactly MAX_LINE_BYTES, legal at the server's incoming framer
+      a.write(`${'a'.repeat(1024)}\n`);
       await new Promise((resolve) => setTimeout(resolve, 150));
-      a.write('short follow-up\n'); // proves b is still listening afterward, not silently deafened
+      a.write('short follow-up\n');
       await new Promise((resolve) => setTimeout(resolve, 150));
     } finally {
       console.log = originalLog;

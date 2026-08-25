@@ -68,7 +68,6 @@ test('emits overflow for a newline-terminated line exceeding maxBytes', () => {
   framer.on('line', (line: string) => lines.push(line));
   framer.on('overflow', () => { overflowCount++; });
 
-  // Send a line with 17 bytes (16 + 1 byte over limit), newline-terminated
   framer.feed(Buffer.from('a'.repeat(17) + '\n'));
 
   assert.equal(overflowCount, 1);
@@ -82,7 +81,6 @@ test('does not overflow for a newline-terminated line at exactly maxBytes', () =
   framer.on('line', (line: string) => lines.push(line));
   framer.on('overflow', () => { overflowCount++; });
 
-  // Send a line with exactly 16 bytes, newline-terminated
   framer.feed(Buffer.from('a'.repeat(16) + '\n'));
 
   assert.equal(overflowCount, 0);

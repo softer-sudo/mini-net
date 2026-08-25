@@ -20,12 +20,11 @@ export class LineFramer extends EventEmitter {
     while (newlineIndex !== -1) {
       const raw = this.#buffer.subarray(0, newlineIndex);
 
-      // Check if this line exceeds the limit
       if (raw.length > this.#maxBytes) {
         this.#overflowed = true;
         this.#buffer = Buffer.alloc(0);
         this.emit('overflow');
-        return; // Stop processing immediately
+        return;
       }
 
       this.#buffer = this.#buffer.subarray(newlineIndex + 1);

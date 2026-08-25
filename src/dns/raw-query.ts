@@ -10,8 +10,8 @@ const CLASS_IN = 1;
 export function encodeQuery(hostname: string, id: number): Buffer {
   const header = Buffer.alloc(12);
   header.writeUInt16BE(id, 0);
-  header.writeUInt16BE(0x0100, 2); // flags: recursion desired
-  header.writeUInt16BE(1, 4); // qdcount = 1
+  header.writeUInt16BE(0x0100, 2);
+  header.writeUInt16BE(1, 4);
 
   const labels = hostname.split('.').map((label) => {
     const buf = Buffer.from(label, 'ascii');
@@ -30,8 +30,8 @@ function skipName(buf: Buffer, offset: number): number {
   while (true) {
     const len = buf[offset];
     if (len === undefined) throw new Error('truncated DNS name');
-    if ((len & 0xc0) === 0xc0) return offset + 2; // compression pointer: always 2 bytes
-    if (len === 0) return offset + 1; // root label
+    if ((len & 0xc0) === 0xc0) return offset + 2;
+    if (len === 0) return offset + 1;
     offset += 1 + len;
   }
 }
@@ -57,7 +57,7 @@ export function decodeResponse(buf: Buffer, expectedId: number): DnsAnswer[] {
   let offset = 12;
   for (let i = 0; i < qdcount; i++) {
     offset = skipName(buf, offset);
-    offset += 4; // qtype + qclass
+    offset += 4;
   }
 
   const answers: DnsAnswer[] = [];

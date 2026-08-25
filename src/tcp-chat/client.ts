@@ -3,13 +3,6 @@ import { LineFramer, MAX_LINE_BYTES } from '../common/line-framer.js';
 import { getFlagOrDefault } from '../common/args.js';
 import { relayStdinLines } from '../common/stdin-relay.js';
 
-// Deliberately near-identical to ../tls-chat/client.ts — same protocol, TLS is
-// just the encrypted transport. Keep them readable independently rather than
-// abstracting the overlap away.
-
-// The server prepends "[address:port] " before rebroadcasting an already
-// MAX_LINE_BYTES-validated line, so the receiving client's framer needs
-// headroom for that prefix or a max-length line would overflow on receipt.
 const CLIENT_LINE_HEADROOM_BYTES = 128;
 
 export function connectTcpChatClient(host: string, port: number): net.Socket {

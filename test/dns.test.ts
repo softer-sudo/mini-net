@@ -6,8 +6,8 @@ import { lookupHostname } from '../src/dns/lookup.js';
 test('encodeQuery writes the id, QDCOUNT=1, and a correctly labeled question', () => {
   const packet = encodeQuery('a.io', 0x1234);
 
-  assert.equal(packet.readUInt16BE(0), 0x1234); // id
-  assert.equal(packet.readUInt16BE(4), 1); // qdcount
+  assert.equal(packet.readUInt16BE(0), 0x1234);
+  assert.equal(packet.readUInt16BE(4), 1);
 
   const question = packet.subarray(12);
   assert.deepEqual(
@@ -20,19 +20,19 @@ test('decodeResponse parses an A record reached through a compression pointer', 
   const id = 0xabcd;
   const header = Buffer.alloc(12);
   header.writeUInt16BE(id, 0);
-  header.writeUInt16BE(0x8180, 2); // response, recursion available, rcode 0
-  header.writeUInt16BE(1, 4); // qdcount
-  header.writeUInt16BE(1, 6); // ancount
+  header.writeUInt16BE(0x8180, 2);
+  header.writeUInt16BE(1, 4);
+  header.writeUInt16BE(1, 6);
 
-  const qname = Buffer.from([1, 'a'.charCodeAt(0), 0]); // "a"
+  const qname = Buffer.from([1, 'a'.charCodeAt(0), 0]);
   const qtypeQclass = Buffer.from([0, 1, 0, 1]);
 
-  const answerName = Buffer.from([0xc0, 0x0c]); // pointer to offset 12 (the question name)
+  const answerName = Buffer.from([0xc0, 0x0c]);
   const answerFixed = Buffer.alloc(10);
-  answerFixed.writeUInt16BE(1, 0); // type A
-  answerFixed.writeUInt16BE(1, 2); // class IN
-  answerFixed.writeUInt32BE(300, 4); // ttl
-  answerFixed.writeUInt16BE(4, 8); // rdlength
+  answerFixed.writeUInt16BE(1, 0);
+  answerFixed.writeUInt16BE(1, 2);
+  answerFixed.writeUInt32BE(300, 4);
+  answerFixed.writeUInt16BE(4, 8);
   const rdata = Buffer.from([93, 184, 216, 34]);
 
   const packet = Buffer.concat([header, qname, qtypeQclass, answerName, answerFixed, rdata]);
@@ -49,7 +49,7 @@ test('decodeResponse rejects a response whose id does not match the query', () =
 test('decodeResponse throws on a non-zero rcode', () => {
   const header = Buffer.alloc(12);
   header.writeUInt16BE(0x1111, 0);
-  header.writeUInt16BE(0x8183, 2); // rcode 3 = NXDOMAIN
+  header.writeUInt16BE(0x8183, 2);
   header.writeUInt16BE(0, 4);
   header.writeUInt16BE(0, 6);
   assert.throws(() => decodeResponse(header, 0x1111), /error code 3/);

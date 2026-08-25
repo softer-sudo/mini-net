@@ -82,9 +82,9 @@ test('a maximum-length broadcast line does not deafen the receiving client', asy
     const originalLog = console.log;
     console.log = ((msg: unknown) => { printedLines.push(String(msg)); }) as typeof console.log;
     try {
-      a.write(`${'a'.repeat(1024)}\n`); // exactly MAX_LINE_BYTES, legal at the server's incoming framer
+      a.write(`${'a'.repeat(1024)}\n`);
       await new Promise((resolve) => setTimeout(resolve, 150));
-      a.write('short follow-up\n'); // proves b is still listening afterward, not silently deafened
+      a.write('short follow-up\n');
       await new Promise((resolve) => setTimeout(resolve, 150));
     } finally {
       console.log = originalLog;

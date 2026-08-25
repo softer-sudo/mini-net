@@ -2,60 +2,73 @@
 
 A tiny Node.js + TypeScript CLI that demonstrates networking fundamentals —
 TCP, UDP, TLS, DNS, and latency measurement — using nothing but Node's
-built-in `net`, `dgram`, `tls`, `dns`, and `child_process` modules. Every
-sub-command is a small, self-contained example of one networking concept
-you can read start to finish in a single file, not a production framework.
+built-in `net`, `dgram`, `tls`, `dns`, and `child_process` modules. No
+runtime dependencies, no CLI framework, no production-grade anything: every
+sub-command is a small, self-contained example of one networking concept,
+written to be read start to finish in a single file.
 
-## 1. What this is
+## Contents
 
-`mini-net` bundles six sub-commands behind one CLI entry point: a
-multi-client TCP chat room, a UDP-based messenger with the same
-broadcast-relay idea but no line framing (each datagram is already a
-discrete message, validated by a byte-size cap instead), the same
-line-framed chat protocol as the TCP version again over TLS with
-certificate verification, a DNS resolver (both the "normal" built-in way
-and a hand-rolled raw UDP query), and a pair of latency tools (TCP-connect
-ping and a traceroute-style hop counter). The point of the project is
-pedagogical: each command exists to
-make one layer of the network stack, or one trade-off between protocols,
-concrete and runnable, and the code is written to be read.
+- [Quick start](#quick-start)
+- [Commands](#commands)
+- [What this is (and isn't)](#what-this-is-and-isnt)
+- [OSI layer map](#osi-layer-map)
+- [TCP vs UDP](#tcp-vs-udp)
+- [DNS](#dns)
+- [TLS handshake](#tls-handshake)
+- [Bandwidth, hops, and CDNs vs response time](#bandwidth-hops-and-cdns-vs-response-time)
+- [The vulnerability mitigated](#the-vulnerability-mitigated-unbounded-input--memory-exhaustion-dos)
+- [Project layout](#project-layout)
 
-It is explicitly **not** a production chat server or resolver. There is no
-authentication, no persistence, no rooms or usernames, no CLI framework
-(argument parsing is hand-rolled `process.argv` scanning), and no real
-ICMP-based ping/traceroute — Node has no raw-socket API without root
-privileges or a native addon, so the latency tools approximate what `ping`
-and `traceroute` measure using TCP-connect timing and by shelling out to the
-OS's own `traceroute`/`tracert` binary. Those simplifications are called out
-explicitly below rather than hidden.
-
-## 2. Install & run
+## Quick start
 
 ```bash
-# 1. Install dependencies (TypeScript, tsx, @types/node — no runtime deps)
-npm install
-
-# 2. Generate a self-signed TLS certificate (only needed before using tls-chat).
-#    Shells out to the system `openssl`; writes certs/server.{key,cert} (gitignored).
-npm run gen-cert
-
-# 3. Build the TypeScript sources to dist/
-npm run build
-
-# 4. Run any command against the compiled output
-node dist/cli.js <command> [options]
-
-# ...or iterate without building, via tsx:
-npm run dev -- <command> [options]
-
-# Run the test suite (Node's built-in test runner, via tsx — no jest/vitest)
-npm test
+npm install              # TypeScript, tsx, @types/node — no runtime deps
+npm run gen-cert          # self-signed TLS cert for tls-chat (needs system openssl)
+npm run build             # compiles src/ -> dist/
+npm test                  # Node's built-in test runner, via tsx — no jest/vitest
 ```
 
-`node dist/cli.js` (or `mini-net` if installed as a bin) with no arguments,
-or `--help`/`-h`, prints the full command usage.
+Run any command against the compiled CLI:
 
-## 3. Commands
+```bash
+node dist/cli.js <command> [options]
+# ...or iterate without building:
+npm run dev -- <command> [options]
+```
+
+`node dist/cli.js` with no arguments, or `--help`/`-h`, prints full usage.
+
+A few commands don't need two terminals — try these first:
+
+```console
+$ node dist/cli.js dns lookup github.com
+github.com -> 140.82.121.4
+
+$ node dist/cli.js dns raw github.com
+github.com -> 140.82.121.4 (ttl 60s)
+
+$ node dist/cli.js ping github.com --port 443 --count 3
+attempt 1: connected to github.com:443 in 35.2ms
+attempt 2: connected to github.com:443 in 25.4ms
+attempt 3: connected to github.com:443 in 25.0ms
+rtt min/avg/max = 25.0/28.5/35.2 ms, 0/3 lost
+```
+
+The chat commands need two terminals — a server and at least one client:
+
+```console
+# terminal 1
+$ node dist/cli.js tcp-chat server --port 4123
+[tcp-chat] server listening on port 4123
+
+# terminal 2
+$ node dist/cli.js tcp-chat client --host localhost --port 4123
+[tcp-chat] connected to localhost:4123
+hello from another client        # <- typed in a third terminal, arrives here
+```
+
+## Commands
 
 | Command | Demonstrates | Example |
 |---|---|---|
@@ -77,7 +90,35 @@ message to every *other* connected client or peer — the sender never sees
 their own message echoed back. Type lines on stdin after connecting; each
 line is sent as one message.
 
-## 4. OSI layer map
+## What this is (and isn't)
+
+`mini-net` bundles six sub-commands behind one CLI entry point:
+
+- a multi-client **TCP chat room**,
+- a **UDP-based messenger** with the same broadcast-relay idea but no line
+  framing (each datagram is already a discrete message, validated by a
+  byte-size cap instead),
+- the same line-framed chat protocol as the TCP version again **over TLS**
+  with certificate verification,
+- a **DNS resolver**, both the "normal" built-in way and a hand-rolled raw
+  UDP query,
+- and a pair of **latency tools** — TCP-connect ping and a traceroute-style
+  hop counter.
+
+The point is pedagogical: each command makes one layer of the network
+stack, or one trade-off between protocols, concrete and runnable, and the
+code is written to be read.
+
+It is explicitly **not** a production chat server or resolver. There is no
+authentication, no persistence, no rooms or usernames, no CLI framework
+(argument parsing is hand-rolled `process.argv` scanning), and no real
+ICMP-based ping/traceroute — Node has no raw-socket API without root
+privileges or a native addon, so the latency tools approximate what `ping`
+and `traceroute` measure using TCP-connect timing and by shelling out to the
+OS's own `traceroute`/`tracert` binary. Those simplifications are called out
+explicitly below rather than hidden.
+
+## OSI layer map
 
 | Command | Primary layer(s) | Notes |
 |---|---|---|
@@ -87,7 +128,7 @@ line is sent as one message.
 | `dns lookup` / `dns raw` | Application (L7), carried over Transport (L4, UDP) | DNS is an application protocol with its own wire format, but that wire format is itself just the payload of a single UDP datagram — L7 sitting directly on L4 with no session layer in between. |
 | `ping` / `traceroute` | Conceptually L3 (ICMP), approximated via L4 here | Real `ping`/`traceroute` operate at the network layer using ICMP echo/TTL-expiry, which requires raw sockets. Node has no raw-socket L3 access without root privileges or a native addon, so `ping` substitutes TCP-connect handshake timing (L4) as an RTT proxy, and `traceroute` shells out to the OS's own L3-capable `traceroute`/`tracert` binary for hop count. **This is a deliberate limitation, not an oversight** — it's called out in the code and here so the approximation isn't mistaken for the real thing. |
 
-## 5. TCP vs UDP
+## TCP vs UDP
 
 TCP is **connection-oriented, ordered, and reliable**: a three-way handshake
 (SYN / SYN-ACK / ACK) establishes a connection before any data flows, every
@@ -114,11 +155,9 @@ application itself with its own timeout — `raw-query.ts` sets a 3-second
 timer and treats a non-response as a failure, rather than relying on the
 transport to retry.
 
-## 6. DNS
+## DNS
 
-Resolving a hostname is a chain of delegated lookups, not one query. In the
-common case (and the case both `dns lookup` and `dns raw` ultimately rely
-on):
+Resolving a hostname is a chain of delegated lookups, not one query:
 
 1. **Stub resolver** — a lightweight resolver that doesn't know how to walk
    the DNS hierarchy itself; it just asks a **recursive resolver** (e.g.
@@ -134,13 +173,13 @@ on):
    (default `8.8.8.8`) over a raw `dgram` socket, with no library in
    between.
 2. The recursive resolver, if it doesn't already have the answer cached,
-   asks a **root server** which server is authoritative for the
-   top-level domain (`.com`, `.org`, ...).
+   asks a **root server** which server is authoritative for the top-level
+   domain (`.com`, `.org`, ...).
 3. It then asks that **TLD server** which server is authoritative for the
    specific domain (`example.com`).
-4. It then asks that **authoritative server** for the actual record
-   (e.g. the A record for `example.com`), and caches the answer (subject
-   to the record's TTL) before returning it to the original stub resolver.
+4. It then asks that **authoritative server** for the actual record (e.g.
+   the A record for `example.com`), and caches the answer (subject to the
+   record's TTL) before returning it to the original stub resolver.
 
 `dns lookup` hides steps 2-4 entirely: `dns.resolve4()` sends one query to
 the configured recursive resolver and gets back a final, already-recursed
@@ -152,8 +191,7 @@ looks like on the wire: a DNS query is fundamentally **one UDP datagram
 out, one UDP datagram back**, sent directly to a single recursive resolver
 (default `8.8.8.8`) — `dns raw`, like `dns.resolve4()`, never talks to a
 root or TLD server itself; it relies on `8.8.8.8` to have already done that
-recursive work. `raw-query.ts`
-hand-encodes the request as:
+recursive work. `raw-query.ts` hand-encodes the request as:
 
 - a fixed **12-byte header** (a 16-bit transaction ID used to match the
   response, flags requesting recursion, and section counts — one question,
@@ -170,12 +208,12 @@ an earlier part of the message rather than a repeated literal name, since
 the answer's name is usually identical to the question's), then reading the
 type, TTL, and RDATA length/value. `dns raw` collects every `A`-type record
 it finds in the answer section (a response can carry more than one) and
-skips over any `CNAME` records it encounters along the way. A
-`setTimeout` rejects the whole operation if no reply arrives within 3
-seconds — since UDP has no delivery guarantee, "no response" has to be
-handled explicitly rather than assumed away.
+skips over any `CNAME` records it encounters along the way. A `setTimeout`
+rejects the whole operation if no reply arrives within 3 seconds — since UDP
+has no delivery guarantee, "no response" has to be handled explicitly
+rather than assumed away.
 
-## 7. TLS handshake
+## TLS handshake
 
 `tls-chat` runs the exact same line-based chat protocol as `tcp-chat`, but
 over `node:tls` instead of `node:net`. Before any chat data flows, the
@@ -194,8 +232,8 @@ client and server perform a TLS handshake:
    `true`, so a certificate that doesn't chain to the pinned CA — expired,
    wrong hostname, tampered — still fails the connection closed.
 4. **Key exchange** — client and server derive a shared symmetric session
-   key (via the negotiated cipher suite's key exchange, e.g.
-   ECDHE) without ever transmitting that key itself in the clear.
+   key (via the negotiated cipher suite's key exchange, e.g. ECDHE) without
+   ever transmitting that key itself in the clear.
 5. **Application data** — every byte after the handshake, including every
    chat line, is encrypted with that session key. The `secureConnect` event
    in `tls-chat/client.ts` fires once this handshake completes, and the
@@ -210,23 +248,23 @@ services — services that will never get a certificate from a public CA but
 still shouldn't accept a connection from *any* server with *any*
 certificate. `gen-cert.sh` also sets a Subject Alternative Name
 (`subjectAltName=DNS:localhost,IP:127.0.0.1`) because modern Node/OpenSSL
-ignore the certificate's Common Name field and require a SAN entry
-matching the connection target, or the handshake fails with
+ignore the certificate's Common Name field and require a SAN entry matching
+the connection target, or the handshake fails with
 `ERR_TLS_CERT_ALTNAME_INVALID`.
 
-## 8. Bandwidth, hops, and CDNs vs response time
+## Bandwidth, hops, and CDNs vs response time
 
 Three different things get conflated under "network is slow," and they
 respond to different fixes:
 
 - **Propagation delay** — the time for a signal to physically travel from
   client to server and back, bounded by the speed of light in the medium.
-  This is the dominant cost for round-trip time (RTT) on most
-  connections, and it grows with physical distance — which in practice
-  shows up as **hop count**: each router a packet passes through adds a
-  small amount of its own **queuing and processing delay** on top of the
-  propagation delay of that link, so more hops (usually correlated with
-  more distance) means a longer RTT.
+  This is the dominant cost for round-trip time (RTT) on most connections,
+  and it grows with physical distance — which in practice shows up as
+  **hop count**: each router a packet passes through adds a small amount of
+  its own **queuing and processing delay** on top of the propagation delay
+  of that link, so more hops (usually correlated with more distance) means
+  a longer RTT.
 - **Bandwidth** — how much data can be pushed through the link per second.
   Bandwidth mostly affects the **duration of a transfer**, not the RTT of
   the first byte: a higher-bandwidth link doesn't make a single small
@@ -239,8 +277,8 @@ respond to different fixes:
   cost, not the second: by serving a request from an edge server that's
   physically closer to the client, a CDN cuts the number of hops and the
   physical round-trip distance, which cuts propagation + per-hop delay
-  directly. When the CDN can also serve the response from its own cache,
-  it avoids the round trip to the origin server entirely, which is an even
+  directly. When the CDN can also serve the response from its own cache, it
+  avoids the round trip to the origin server entirely, which is an even
   bigger win than just being closer.
 
 `ping` and `traceroute` in this project are the observable proxies for
@@ -252,19 +290,19 @@ against a nearby server versus one on another continent, or against an
 origin server versus its CDN-fronted hostname, and the RTT and hop-count
 differences are exactly the effects described above made concrete.
 
-## 9. The vulnerability mitigated: unbounded input → memory-exhaustion DoS
+## The vulnerability mitigated: unbounded input → memory-exhaustion DoS
 
-**The vulnerability.** `tcp-chat` and `tls-chat` read from their sockets
-and buffer bytes until a newline (`\n`) delimits a complete line. Without a
+**The vulnerability.** `tcp-chat` and `tls-chat` read from their sockets and
+buffer bytes until a newline (`\n`) delimits a complete line. Without a
 bound on that buffer, a malicious or simply broken client can exploit this
 directly: open a connection and stream bytes that **never contain a
 newline**. A naive implementation keeps concatenating every incoming chunk
-onto one ever-growing buffer, waiting for a delimiter that never arrives.
-A single such connection can be driven to consume arbitrary amounts of
-server memory, and a handful of concurrent connections doing the same
-thing can exhaust the process's memory entirely — a classic
-memory-exhaustion denial-of-service, and one that requires no special
-tooling to trigger, just a socket that writes without ever writing `\n`.
+onto one ever-growing buffer, waiting for a delimiter that never arrives. A
+single such connection can be driven to consume arbitrary amounts of server
+memory, and a handful of concurrent connections doing the same thing can
+exhaust the process's memory entirely — a classic memory-exhaustion
+denial-of-service, and one that requires no special tooling to trigger,
+just a socket that writes without ever writing `\n`.
 
 **The mitigation.** `src/common/line-framer.ts`'s `LineFramer` class caps
 how large an unterminated line is allowed to get: `MAX_LINE_BYTES` (1024
@@ -277,16 +315,16 @@ raw buffer just keeps growing — `LineFramer` emits an `overflow` event
 instead of continuing to buffer. Both `tcp-chat` and `tls-chat` listen for
 `overflow` and respond by writing a short error line to the offending
 client and then destroying that socket (`socket.destroy()`), which frees
-the buffered memory and drops the connection. The failure mode changes
-from "this connection can grow forever" to "this connection is cut off
-within 1024 bytes of misbehavior."
+the buffered memory and drops the connection. The failure mode changes from
+"this connection can grow forever" to "this connection is cut off within
+1024 bytes of misbehavior."
 
 **Scope limit.** This guard is deliberately narrow, and that's worth
 stating explicitly rather than implying the project defends against
 denial-of-service in general: `LineFramer` mitigates *exactly one* attack
-shape — a single connection buffering an unterminated or oversized line.
-It does **not** defend against a SYN flood (which exhausts connection
-slots before any application-layer byte is ever read), and it does **not**
+shape — a single connection buffering an unterminated or oversized line. It
+does **not** defend against a SYN flood (which exhausts connection slots
+before any application-layer byte is ever read), and it does **not**
 defend against a distributed flood of many UDP datagrams or many
 concurrent TCP connections each individually well-behaved (which exhausts
 resources through sheer connection/socket count rather than through one
@@ -297,7 +335,7 @@ spirit is dropping any single datagram over `UDP_MAX_MESSAGE_BYTES` (2000
 bytes), which is the UDP-appropriate analog of the same narrow idea, not a
 flood defense either.
 
-## 10. Project layout
+## Project layout
 
 ```
 mini-net/
@@ -308,18 +346,18 @@ mini-net/
 ├── dist/                    # compiled output of `npm run build`, gitignored
 ├── test/                    # node:test suite, run via `npm test` (tsx --test test)
 └── src/
-    ├── cli.ts               # entry point: dispatches sub-commands, prints usage/--help
+    ├── cli.ts                # entry point: dispatches sub-commands, prints usage/--help
     ├── common/
-    │   ├── line-framer.ts    # bounded newline-delimited framing — the anti-DoS guard (section 9)
-    │   ├── args.ts           # tiny --flag value parsing helper, no CLI framework
-    │   └── stdin-relay.ts    # relays stdin lines into a callback (used by all chat clients)
-    ├── tcp-chat/{server,client}.ts   # multi-client broadcast chat over plain TCP
-    ├── udp-messenger/{server,client}.ts  # connected-mode UDP messenger
-    ├── tls-chat/{server,client}.ts   # same chat protocol, over TLS with a pinned CA
+    │   ├── line-framer.ts     # bounded newline-delimited framing — the anti-DoS guard
+    │   ├── args.ts            # tiny --flag value parsing helper, no CLI framework
+    │   └── stdin-relay.ts     # relays stdin lines into a callback (used by all chat clients)
+    ├── tcp-chat/{server,client}.ts       # multi-client broadcast chat over plain TCP
+    ├── udp-messenger/{server,client}.ts  # UDP messenger — client uses connected-mode dgram
+    ├── tls-chat/{server,client}.ts       # same chat protocol, over TLS with a pinned CA
     ├── dns/
-    │   ├── lookup.ts          # thin wrapper over Node's built-in dns.resolve4
-    │   └── raw-query.ts       # hand-rolled DNS-over-UDP query encoder/decoder
+    │   ├── lookup.ts           # thin wrapper over Node's built-in dns.resolve4
+    │   └── raw-query.ts        # hand-rolled DNS-over-UDP query encoder/decoder
     └── latency/
-        ├── tcp-ping.ts        # RTT via net.connect() timing, min/avg/max
-        └── traceroute.ts      # tcp-ping RTT + child_process OS traceroute/tracert for hop count
+        ├── tcp-ping.ts         # RTT via net.connect() timing, min/avg/max
+        └── traceroute.ts       # tcp-ping RTT + child_process OS traceroute/tracert for hop count
 ```
